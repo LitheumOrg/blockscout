@@ -209,12 +209,16 @@ defmodule Indexer.Block.Realtime.Fetcher do
   case @chain_type do
     :stability ->
       defp fetch_validators_async do
-        GenServer.cast(Indexer.Fetcher.Stability.Validator, :update_validators_list)
+        alias Indexer.Fetcher.Stability.Validator, as: StabilityValidator
+
+        StabilityValidator.trigger_update_validators_list()
       end
 
     :blackfort ->
       defp fetch_validators_async do
-        GenServer.cast(Indexer.Fetcher.Blackfort.Validator, :update_validators_list)
+        alias Indexer.Fetcher.Blackfort.Validator, as: BlackfortValidator
+
+        BlackfortValidator.trigger_update_validators_list()
       end
 
     _ ->
@@ -247,9 +251,15 @@ defmodule Indexer.Block.Realtime.Fetcher do
 
   defp schedule_polling do
     polling_period =
-      case AverageBlockTime.average_block_time() do
-        {:error, :disabled} -> 2_000
-        block_time -> min(round(Duration.to_milliseconds(block_time) / 2), 30_000)
+      case Application.get_env(:indexer, __MODULE__)[:polling_period] do
+        nil ->
+          case AverageBlockTime.average_block_time() do
+            {:error, :disabled} -> 2_000
+            block_time -> min(round(Duration.to_milliseconds(block_time) / 2), 30_000)
+          end
+
+        period ->
+          period
       end
 
     safe_polling_period = max(polling_period, @minimum_safe_polling_period)
